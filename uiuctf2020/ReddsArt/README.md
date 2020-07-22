@@ -1,6 +1,6 @@
 # UIUCTF 2020 login_page Writeup
 
-Category: RE
+Category: RE  
 Points: 200
 
 ## [Description](https://ctftime.org/task/12408)
