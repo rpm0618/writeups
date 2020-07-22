@@ -14,7 +14,7 @@ Author: Husnain
 
 This challenge ended up being a combination of sql injection and hash cracking. Picking up hashcat again after several years was fun, especially now that I have a nice GPU to run it on :)
 
-## Preqresites
+## Prerequisites
 This writeup aims to be a good introduction to both SQL injection and hash cracking, but I do assume you have a basic knowledge of SQL and know what MD5 is. If you've done any backend/fullstack web dev before you should be fine.
 
 ## Intro
@@ -74,11 +74,11 @@ Here's a table with all the users and their password hints:
 
 The hints are nice, but not enough info for us to start guessing passwords (except maybe carl's), so we'll put these aside for now and return to the search page.
 
-## SQL Injection (Arbitraty Queries)
+## SQL Injection (Arbitrary Queries)
 
 Some might quibble about calling what we did in the above section SQL Injection, but what we're doing in this section definitely is!
 
-Our current goal is to find out more information about the strucute of the database, since there's a good chance that password information is stored in the same location as other user data. We'll need to make some more complicated queries to do that. Unfortunately we're still stuck inside the `LIKE` operator. Let's see if we can get out of that.
+Our current goal is to find out more information about the structure of the database, since there's a good chance that password information is stored in the same location as other user data. We'll need to make some more complicated queries to do that. Unfortunately we're still stuck inside the `LIKE` operator. Let's see if we can get out of that.
 
 Taking another look at what we know of the query currently
 ```sql
@@ -92,13 +92,13 @@ When `search = "` (one double quote), that causes the final query to look like t
 ```sql
 ... WHERE username LIKE "%"%";
 ```
-We managed to close out the `LIKE` query, but now their's this extra `%";` at the end of the query, causing issues. So let's comment it out (we also need the semicolon, to end the query). The string we need to input into the search box is `"; --`, giving
+We managed to close out the `LIKE` query, but now there's this extra `%";` at the end of the query, causing issues. So let's comment it out (we also need the semicolon, to end the query). The string we need to input into the search box is `"; --`, giving
 ```sql
 ... WHERE username LIKE "%"; --%";
 ```
-This query will also list all of the uesrs (like in the section above), but now we have a lot more control over the resulting query. Unfortunately, all of the control we have is at the end, in the `WHERE` clause. How are we going to run our own queries? `UNION` to the rescue!
+This query will also list all of the users (like in the section above), but now we have a lot more control over the resulting query. Unfortunately, all of the control we have is at the end, in the `WHERE` clause. How are we going to run our own queries? `UNION` to the rescue!
 
-The `UNION` operator isn't commonly used, so don't feel bad if you've never heard of it before. Essentialy, it lets you combine the results of two queries into one. The catch is both queries need to have the same column names, and we don't know what ours need to be!
+The `UNION` operator isn't commonly used, so don't feel bad if you've never heard of it before. Essentially, it lets you combine the results of two queries into one. The catch is both queries need to have the same column names, and we don't know what ours need to be!
 
 Thankfully, they aren't too hard to figure out. A quick glance at the column headings on the user lets us guess that `name` and `bio` are the names of the columns. We can test this by using `" UNION SELECT "one" as name, "two" as bio; --` as the search input.
 That leads to a query that looks like
@@ -111,7 +111,7 @@ _One pwn, Two pwn, Red pwn, Blue pwn_
 
 ## SQL Injection (Dumping Hashes)
 
-Now that we can execute arbitraty sql, let's see about getting some more information about the application's database. We know from the challenge description that it's using sqlite, and a quick google gives us a query we can use to list all the tables and their schemas (modified slightly to fit our column names):
+Now that we can execute arbitrary sql, let's see about getting some more information about the application's database. We know from the challenge description that it's using sqlite, and a quick google gives us a query we can use to list all the tables and their schemas (modified slightly to fit our column names):
 ```sql
 SELECT name, sql AS "bio" FROM sqlite_master WHERE type='table'
 ```
@@ -142,11 +142,11 @@ Repeating the process for this query, we get the search input we need to dump ev
 
 |Name|Password Hash|
 |---|---|
-alice|530bd2d24bff2d77276c4117dc1fc719|
-bob|4106716ae604fba94f1c05318f87e063|
-carl|661ded81b6b99758643f19517a468331|
-dania|58970d579d25f7288599fcd709b3ded3|
-noob|8553127fedf5daacc26f3b677b58a856|
+|alice|530bd2d24bff2d77276c4117dc1fc719|
+|bob|4106716ae604fba94f1c05318f87e063|
+|carl|661ded81b6b99758643f19517a468331|
+|dania|58970d579d25f7288599fcd709b3ded3|
+|noob|8553127fedf5daacc26f3b677b58a856|
 
 **Exercise for the reader:** Can you construct an input to the searchbox that would return only the user's hashes, and not their bios?
 
@@ -154,7 +154,7 @@ noob|8553127fedf5daacc26f3b677b58a856|
 
 So now we have all the user's hashes, but that's only half of the problem. We need the actual user's passwords in order to login. These are MD5 hashes (We can tell because hash is a 32 character hex string. That's a pretty strong indicator that it's an MD5).
 
-MD5 is a bad hashing algorithm in general, and it's an even worse password hashing algorithm. That hasn't stopped people from using it though, and in fact it's common enough that it's possbile to crack some hashes with google:
+MD5 is a bad hashing algorithm in general, and it's an even worse password hashing algorithm. That hasn't stopped people from using it though, and in fact it's common enough that it's possible to crack some hashes with google:
 
 ![Noobs Hash Google](noob_hash_google.png)  
 _The coveted single result google search_
@@ -235,7 +235,7 @@ _Down the rabbit hole we go_
 
 Bob's hint is `My favorite 12 digit number (md5 hashed for extra security) [starts with a 10]`.
 
-Bob is trying to be sneaky here. He remember's his favorite number, but doesn't use it directly as the password. Instead he hashes it first, and uses that as the password. That means the password hash we have for him has actually been through two layers of MD5!
+Bob is trying to be sneaky here. He remembers his favorite number, but doesn't use it directly as the password. Instead he hashes it first, and uses that as the password. That means the password hash we have for him has actually been through two layers of MD5!
 
 Thankfully, that's no problem for hashcat:
 ```
@@ -263,9 +263,9 @@ _How many burger's do you think he has?_
 
 ## Hash Cracking (Dania - Arabic)
 
-Were on the home strech now, only one more hash to crack. Unfortunately, this is a tough one. As a reminder, Dania's hint is in Arabic which translates to `My favorite animal (6 Arabic characters only)`
+Were on the home stretch now, only one more hash to crack. Unfortunately, this is a tough one. As a reminder, Dania's hint is in Arabic which translates to `My favorite animal (6 Arabic characters only)`
 
-Unfortunately, hashcat doesn't have any direct built in support for Arabic characters. Thankfully, a quick google shows it is flexible enough to allow us to it ourselves. The trick is that each Arabic character (when UTF-8 encoded) is actually two bytes long. We can use the mask attack with some custom character sets to tell hashcat to only construct valid Arabic characters. See [this](https://blog.bitcrack.net/2013/09/cracking-hashes-with-other-language.html) page for more information on how this works.
+Unfortunately, hashcat doesn't have any direct built in support for Arabic characters. Thankfully, a quick google shows it is flexible enough to allow us to do it ourselves. The trick is that each Arabic character (when UTF-8 encoded) is actually two bytes long. We can use the mask attack with some custom character sets to tell hashcat to only construct valid Arabic characters. See [this](https://blog.bitcrack.net/2013/09/cracking-hashes-with-other-language.html) page for more information on how this works.
 ```
 > hashcat.exe 58970d579d25f7288599fcd709b3ded3 --hex-charset -1 d8d9dadb -2 808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebf -a 3 ?1?2?1?2?1?2?1?2?1?2?1?2 -o dania.out
 ```
