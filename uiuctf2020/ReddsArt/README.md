@@ -111,7 +111,7 @@ MOV        qword ptr [RBP + -0x18],0x9
 MOV        RAX,qword ptr [RBP + -0x18]
 MOVZX      EAX=>DAT_00000009,byte ptr [RAX]
 ```
-It takes a couple of steps to do it, but this essentially ends up loading `0x9` into `RAX`, and then attempts to dereference it, which wil obviously fail. We don't know what the addition constant is supposed to be.
+It takes a couple of steps to do it, but this essentially ends up loading `0x9` into `RAX`, and then attempts to dereference it, which will obviously fail. We don't know what the addition constant is supposed to be.
 
 No worries, though! Since it's being added to a byte, there are only 256 possible values. We can loop through them all with another python script.
 ```python
