@@ -1,4 +1,4 @@
-# UIUCTF 2020 login_page Writeup
+# UIUCTF 2020 ReddsArt Writeup
 
 Category: RE  
 Points: 200
