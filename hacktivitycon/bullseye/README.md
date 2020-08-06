@@ -70,8 +70,6 @@ you manage to not segfault on the write and wait 15 seconds, the binary prints t
 
 Still though, popping a shell with only a single write seems fairly difficult. Especially since the function calls exit and never returns, so a standard ROP is out of the question. It would be nice if we could do more than one write.
 
-TODO: Insert note about one_gadget
-
 ## GOT milk?
 When binaries are dynamically linked (like this one is) it doesn't know the address of external symbols (such as `exit` or `printf`) at compile time. Instead, the address are resolved at run time.
 
@@ -115,8 +113,6 @@ Once that's finished, the next call to `strtoull` (which will have a pointer to 
 
 ```python
 stream.sendline("/bin/sh")
-
-stream.interactive()
 ```
 
 ## Flag
