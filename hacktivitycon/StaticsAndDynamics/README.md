@@ -71,9 +71,11 @@ Trying to run this however will segfault. Inspecting in gdb reveals that we trie
 
 A more careful reading of the `mprotect` man page reveals the issue. The address you pass to it must be page aligned. It turns out that these permissions are enforced on the page level, not on the byte level. `pwntools` probably has some utility to align address to a page (it has everything else), but I don't know what it is, so I just hardcoded the offset.
 
+After that it worked like a charm.
+
 ## Flag
 
-The full exploit script is available in `sad.py`. When run it will pop a shell.
+The full exploit script is available in `sad.py`.
 
 ```
 > cat flag.txt
