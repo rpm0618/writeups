@@ -377,7 +377,7 @@ pwndbg> dd 0x341208087c0d-1
 0000341208087c3c     00000000 00000000 08042a59 0000020a
 ```
 
-If we use `oob` to overwrite the backing store pointer (`<1>`), any reads and writes to `victim_buf` will end up going to the, overwritten address! Unfortunately the pointer doesn't line up exactly with the 8 byte alignment of our `oob` array, so corrupting the pointer without clobbering anything else takes a bit of work.
+If we use `oob` to overwrite the backing store pointer (`<1>`), any reads and writes to `victim_buf` will end up going to the, overwritten address! Unfortunately the pointer doesn't line up exactly with the 8 byte alignment of our `oob` array, so corrupting the pointer without clobbering anything else takes a bit of work. Note that fully correct implementation would also overwrite the ArrayBuffer's length field, but here we know that our initial size will be large enough for the data we need to write.
 
 ```js
 function write(addr, data) {
@@ -405,6 +405,13 @@ function write(addr, data) {
     }
 }
 ```
+
+Read would be implemented in much the same wa, but it wasn't needed for this exploit and so is left as an exercise to the reader :)
+
+## Sidebar: Arbitrary Heap R/W
+Pointer compression means we generally only have the lower 32 bits of a javascript object's address in memory. This makes using the arbitrary r/w primitive above on the v8 heap objects difficult, as we would need to brute force a fair amount of ASLR. A way around this is to overwrite the `elements` pointer in an array, since that is also a 32 bit compressed pointer. I ended up using a different method I describe below, but the official solve script has an example. *Link Here*
+
+
 
 ## JSObjects in memory
 ```
