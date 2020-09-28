@@ -1,3 +1,7 @@
+"""
+Intended to be a sigrop challenge, but printf was left in for libc leak.
+Becomes a normal ret2libc
+"""
 from pwn import *
 
 binary_path = "./rrop"
@@ -46,11 +50,6 @@ def start():
 io = start()
 
 io.recvline()
-buffer_addr = int(io.recvline().split(b"@")[1].split(b",")[0], 0)
-
-print(f"BUFFER: {hex(buffer_addr)}")
-
-#io.sendline(cyclic(300, n=8))
 
 rop = ROP(elf)
 

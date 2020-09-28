@@ -1,3 +1,8 @@
+"""
+32 bit, which was fun. Was inteded to be ret2dlresolve, but printf was left in for a libc
+leak. Because a standard ret2libc
+"""
+
 from pwn import *
 
 binary_path = "./newPaX"
