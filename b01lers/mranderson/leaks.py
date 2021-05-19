@@ -1,3 +1,6 @@
+"""
+Leak stack canary, leak libc, rop to system("/bin/sh")
+"""
 from pwn import *
 
 binary_path = "./leaks"

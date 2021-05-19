@@ -1,3 +1,7 @@
+"""
+Binary takes 16 bytes of shellcode and executes it, "/bin/sh" is on the stack. Pop it 
+into RDI, and syscall execve
+"""
 from pwn import *
 
 binary_path = "./shellcoding"

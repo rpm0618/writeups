@@ -1,3 +1,6 @@
+"""
+simple ret2win
+"""
 from pwn import *
 
 binary_path = "./theoracle"
