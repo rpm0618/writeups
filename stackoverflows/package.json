@@ -1,0 +1,9 @@
+{
+  "scripts": {
+    "start": "mdx-deck deck.mdx"
+  },
+  "devDependencies": {
+    "@mdx-deck/themes": "^4.1.0",
+    "mdx-deck": "^4.1.1"
+  }
+}

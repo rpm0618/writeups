@@ -1,0 +1,754 @@
+import * as themes from "@mdx-deck/themes"
+import {default as t} from './theme';
+export const theme = t;
+
+# smashing the stack for fun and profit
+
+---
+
+# disclaimer
+
+<Steps>
+
+- this is an oversimplification
+- applies to 64-bit linux
+
+</Steps>
+
+---
+
+## spot the problem
+
+```c
+int main() {
+    char name[32];
+
+    printf("What's you're name?\n");
+    gets(name);
+
+    printf("Hello %s", name);
+    return 0;
+}
+```
+
+---
+
+## spot the problem
+
+```c
+int main() {
+    char name[32];
+
+    printf("What's you're name?\n");
+    gets(name); // <-- Right Here!
+
+    printf("Hello %s", name);
+    return 0;
+}
+```
+
+---
+
+# the stack
+
+<Steps>
+
+- stores variables allocated for each function
+    - some exceptions (`malloc` and `new`)
+- also stores the return address of the current function
+- "grows down"
+
+</Steps>
+
+---
+
+# the stack
+
+<pre>
++----------------+ &lt;- higher address<br/>
+|                |<br/>
+|                |<br/>
++----------------+<br/>
+| return address |<br/>
++----------------+<br/>
+|                |<br/>
+|                |<br/>
+|                |<br/>
+| name buffer    |<br/>
++----------------+ &lt;- rsp<br/>
+|                |<br/>
+|                |<br/>
+|                |<br/>
+|                |<br/>
++----------------+ &lt;- lower address<br/>
+</pre>
+
+---
+
+# push 0x1337;
+
+<pre>
++----------------+ &lt;- higher address<br/>
+|                |<br/>
+|                |<br/>
++----------------+<br/>
+| return address |<br/>
++----------------+<br/>
+|                |<br/>
+|                |<br/>
+|                |<br/>
+| name buffer    |<br/>
++----------------+<br/>
+| 0x1337         |<br/>
++----------------+ &lt;- rsp<br/>
+|                |<br/>
+|                |<br/>
++----------------+ &lt;- lower address<br/>
+</pre>
+
+---
+
+# pop rax;
+
+<pre>
++----------------+ &lt;- higher address<br/>
+|                |<br/>
+|                |<br/>
++----------------+<br/>
+| return address |<br/>
++----------------+<br/>
+|                |<br/>
+|                |<br/>
+|                |<br/>
+| name buffer    |<br/>
++----------------+ &lt;- rsp<br/>
+| 0x1337         |<br/>
++----------------+<br/>
+|                |<br/>
+|                |<br/>
++----------------+ &lt;- lower address<br/>
+</pre>
+
+---
+
+# pop rax;
+
+<Split>
+
+<pre>
++----------------+                  <br/>
+|                |                  <br/>
+|                |                  <br/>
++----------------+                  <br/>
+| return address |                  <br/>
++----------------+                  <br/>
+|                |                  <br/>
+|                |                  <br/>
+|                |                  <br/>
+| name buffer    |                  <br/>
++----------------+ &lt;- rsp        <br/>
+| 0x1337         |                  <br/>
++----------------+                  <br/>
+|                |                  <br/>
+|                |                  <br/>
++----------------+                  <br/>
+</pre>
+
+rax = 0x1337  
+rbx = 0x0000  
+rcx = 0x0000  
+rdx = 0x0000  
+...
+
+</Split>
+
+---
+
+# gets(name);
+
+<pre>
++----------------+<br/>
+|                |<br/>
+|                |<br/>
++----------------+<br/>
+| return address |<br/>
++----------------+<br/>
+|                |<br/>
+|                |<br/>
+|                |<br/>
+| name buffer    |<br/>
++----------------+ &lt;- rsp<br/>
+|                |<br/>
+|                |<br/>
+|                |<br/>
+|                |<br/>
++----------------+<br/>
+</pre>
+
+---
+
+# gets(name);
+
+<pre>
++----------------+<br/>
+|                |<br/>
+|                |<br/>
++----------------+<br/>
+| return address |<br/>
++----------------+<br/>
+|                |<br/>
+|                |<br/>
+|                |<br/>
+| AAAAAAAA       |<br/>
++----------------+ &lt;- rsp<br/>
+|                |<br/>
+|                |<br/>
+|                |<br/>
+|                |<br/>
++----------------+<br/>
+</pre>
+
+---
+
+# gets(name);
+
+<pre>
++----------------+<br/>
+|                |<br/>
+|                |<br/>
++----------------+<br/>
+| return address |<br/>
++----------------+<br/>
+|                |<br/>
+| AAAAAAA        |<br/>
+| AAAAAAAAAAAAAA |<br/>
+| AAAAAAAAAAAAAA |<br/>
++----------------+ &lt;- rsp<br/>
+|                |<br/>
+|                |<br/>
+|                |<br/>
+|                |<br/>
++----------------+<br/>
+</pre>
+
+---
+
+# gets(name);
+
+<pre>
++----------------+<br/>
+|                |<br/>
+|                |<br/>
++----------------+<br/>
+| return address |<br/>
++----------------+<br/>
+| AAAAAAAAAAAAAA |<br/>
+| AAAAAAAAAAAAAA |<br/>
+| AAAAAAAAAAAAAA |<br/>
+| AAAAAAAAAAAAAA |<br/>
++----------------+ &lt;- rsp<br/>
+|                |<br/>
+|                |<br/>
+|                |<br/>
+|                |<br/>
++----------------+<br/>
+</pre>
+
+---
+
+# gets(name);
+
+<pre>
++----------------+<br/>
+|                |<br/>
+|                |<br/>
++----------------+<br/>
+| Aeturn address |<br/>
++----------------+<br/>
+| AAAAAAAAAAAAAA |<br/>
+| AAAAAAAAAAAAAA |<br/>
+| AAAAAAAAAAAAAA |<br/>
+| AAAAAAAAAAAAAA |<br/>
++----------------+ &lt;- rsp<br/>
+|                |<br/>
+|                |<br/>
+|                |<br/>
+|                |<br/>
++----------------+<br/>
+</pre>
+
+---
+
+# gets(name);
+
+<pre>
++----------------+<br/>
+|                |<br/>
+|                |<br/>
++----------------+<br/>
+| AAturn address |<br/>
++----------------+<br/>
+| AAAAAAAAAAAAAA |<br/>
+| AAAAAAAAAAAAAA |<br/>
+| AAAAAAAAAAAAAA |<br/>
+| AAAAAAAAAAAAAA |<br/>
++----------------+ &lt;- rsp<br/>
+|                |<br/>
+|                |<br/>
+|                |<br/>
+|                |<br/>
++----------------+<br/>
+</pre>
+
+---
+
+# gets(name);
+
+<pre>
++----------------+<br/>
+|                |<br/>
+|                |<br/>
++----------------+<br/>
+| AAAurn address |<br/>
++----------------+<br/>
+| AAAAAAAAAAAAAA |<br/>
+| AAAAAAAAAAAAAA |<br/>
+| AAAAAAAAAAAAAA |<br/>
+| AAAAAAAAAAAAAA |<br/>
++----------------+ &lt;- rsp<br/>
+|                |<br/>
+|                |<br/>
+|                |<br/>
+|                |<br/>
++----------------+<br/>
+</pre>
+
+---
+
+# gets(name);
+
+<pre>
++----------------+<br/>
+|                |<br/>
+|                |<br/>
++----------------+<br/>
+| AAAAAAAAAAAAAA |<br/>
++----------------+<br/>
+| AAAAAAAAAAAAAA |<br/>
+| AAAAAAAAAAAAAA |<br/>
+| AAAAAAAAAAAAAA |<br/>
+| AAAAAAAAAAAAAA |<br/>
++----------------+ &lt;- rsp<br/>
+|                |<br/>
+|                |<br/>
+|                |<br/>
+|                |<br/>
++----------------+<br/>
+</pre>
+
+---
+
+# return 0;
+
+<pre>
++----------------+<br/>
+|                |<br/>
+|                |<br/>
++----------------+<br/>
+| AAAAAAAAAAAAAA |<br/>
++----------------+ &lt;- rsp<br/>
+| AAAAAAAAAAAAAA |<br/>
+| AAAAAAAAAAAAAA |<br/>
+| AAAAAAAAAAAAAA |<br/>
+| AAAAAAAAAAAAAA |<br/>
++----------------+<br/>
+|                |<br/>
+|                |<br/>
+|                |<br/>
+|                |<br/>
++----------------+<br/>
+</pre>
+
+---
+
+# ret;
+
+<pre>
++----------------+<br/>
+|                |<br/>
+|                |<br/>
++----------------+<br/>
+| AAAAAAAAAAAAAA |<br/>
++----------------+ &lt;- rsp<br/>
+| AAAAAAAAAAAAAA |<br/>
+| AAAAAAAAAAAAAA |<br/>
+| AAAAAAAAAAAAAA |<br/>
+| AAAAAAAAAAAAAA |<br/>
++----------------+<br/>
+|                |<br/>
+|                |<br/>
+|                |<br/>
+|                |<br/>
++----------------+<br/>
+</pre>
+
+---
+
+# ret;
+
+<pre>
++----------------+<br/>
+|                |<br/>
+|                |<br/>
++----------------+ &lt;- rsp<br/>
+| AAAAAAAAAAAAAA |<br/>
++----------------+<br/>
+| AAAAAAAAAAAAAA |<br/>
+| AAAAAAAAAAAAAA |<br/>
+| AAAAAAAAAAAAAA |<br/>
+| AAAAAAAAAAAAAA |<br/>
++----------------+<br/>
+|                |<br/>
+|                |<br/>
+|                |<br/>
+|                |<br/>
++----------------+<br/>
+</pre>
+
+---
+
+# SEGFAULT!
+
+<pre>
++----------------+<br/>
+|                |<br/>
+|                |<br/>
++----------------+ &lt;- rsp<br/>
+| AAAAAAAAAAAAAA |<br/>
++----------------+<br/>
+| AAAAAAAAAAAAAA |<br/>
+| AAAAAAAAAAAAAA |<br/>
+| AAAAAAAAAAAAAA |<br/>
+| AAAAAAAAAAAAAA |<br/>
++----------------+<br/>
+|                |<br/>
+|                |<br/>
+|                |<br/>
+|                |<br/>
++----------------+<br/>
+</pre>
+
+---
+
+# what now?
+
+<Steps>
+
+- we have control over the instruction pointer (rip)
+- in the 90s we could just write some machine code and jump directly to it
+    - stil can sometimes (iot especially)
+- modern mitigations make this impossible
+
+</Steps>
+
+---
+
+# data execution prevention (dep)
+
+<Steps>
+
+- NX, W^X, etc.
+- enforces separation of code and data
+- makes the stack non-executable
+
+</Steps>
+
+---
+
+# return oriented programming (rop)
+
+<Steps>
+
+- if we can't write our own code, live off the land instead
+- chain together "gadgets" using return address and data on the stack
+    - short sequences of instructions followed by a `ret;`
+- turing complete
+
+</Steps>
+
+---
+
+# pop a shell
+
+<Steps>
+
+- open a shell (usually `/bin/sh`) from a program, proves code execution
+- multiple ways to actually do this, easiest is to call `system("/bin/sh")`
+    - can overwrite return address with the address of `system()`
+- how do we pass an argument?
+
+</Steps>
+
+---
+
+# x64 linux calling convention
+
+<Steps>
+
+- arguments passed by registers
+    - rdi, rsi, rdx, rcx, r8, r9
+- excess arguments get passed on the stack
+- for `system("/bin/sh")`, need to find a gadget that sets rdi
+    - `pop rdi; ret;`
+
+</Steps>
+
+---
+
+# "/bin/sh"
+
+<Steps>
+
+- write it ourselves in the name buffer
+- alternatively, the string actually exists in memory already
+
+</Steps>
+
+--- 
+
+# putting it all together
+
+<Split>
+
+<pre>
++----------------+           <br/>
+|                |           <br/>
+|                |           <br/>
+|                |           <br/>
+|                |           <br/>
+|                |           <br/>
++----------------+           <br/>
+| return address |           <br/>
++----------------+           <br/>
+|                |           <br/>
+|                |           <br/>
+|                |           <br/>
+| name buffer    |           <br/>
++----------------+ &lt;- rsp <br/>
+|                |           <br/>
++----------------+           <br/>
+</pre>
+
+<pre>
++----------------+<br/>
+| rdi=0x0000     |<br/>
++----------------+<br/>
+</pre>
+
+</Split>
+
+---
+
+# gets(name);
+
+<Split>
+
+<pre>
++----------------+           <br/>
+|                |           <br/>
++----------------+           <br/>
+| &amp;system()      |           <br/>
++----------------+           <br/>
+| &amp;"/bin/sh"     |           <br/>
++----------------+           <br/>
+| &amp;pop rdi; ret; |           <br/>
++----------------+           <br/>
+| AAAAAAAAAAAAAA |           <br/>
+| AAAAAAAAAAAAAA |           <br/>
+| AAAAAAAAAAAAAA |           <br/>
+| /bin/sh AAAAAA |           <br/>
++----------------+ &lt;- rsp <br/>
+|                |           <br/>
++----------------+           <br/>
+</pre>
+
+<pre>
++----------------+<br/>
+| rdi=0x0000     |<br/>
++----------------+<br/>
+</pre>
+
+</Split>
+
+---
+
+# return 0;
+
+<Split>
+
+<pre>
++----------------+           <br/>
+|                |           <br/>
++----------------+           <br/>
+| &amp;system()      |           <br/>
++----------------+           <br/>
+| &amp;"/bin/sh"     |           <br/>
++----------------+           <br/>
+| &amp;pop rdi; ret; |           <br/>
++----------------+ &lt;- rsp <br/>
+| AAAAAAAAAAAAAA |           <br/>
+| AAAAAAAAAAAAAA |           <br/>
+| AAAAAAAAAAAAAA |           <br/>
+| /bin/sh AAAAAA |           <br/>
++----------------+           <br/>
+|                |           <br/>
++----------------+           <br/>
+</pre>
+
+<pre>
++----------------+<br/>
+| rdi=0x0000     |<br/>
++----------------+<br/>
+</pre>
+
+</Split>
+
+---
+
+# pop rdi;
+
+<Split>
+
+<pre>
++----------------+           <br/>
+|                |           <br/>
++----------------+           <br/>
+| &amp;system()      |           <br/>
++----------------+           <br/>
+| &amp;"/bin/sh"     |           <br/>
++----------------+ &lt;- rsp <br/>
+| &amp;pop rdi; ret; |           <br/>
++----------------+           <br/>
+| AAAAAAAAAAAAAA |           <br/>
+| AAAAAAAAAAAAAA |           <br/>
+| AAAAAAAAAAAAAA |           <br/>
+| /bin/sh AAAAAA |           <br/>
++----------------+           <br/>
+|                |           <br/>
++----------------+           <br/>
+</pre>
+
+<pre>
++----------------+<br/>
+| rdi=0x0000     |<br/>
++----------------+<br/>
+</pre>
+
+</Split>
+
+---
+
+# pop rdi;
+
+<Split>
+
+<pre>
++----------------+           <br/>
+|                |           <br/>
++----------------+           <br/>
+| &amp;system()      |           <br/>
++----------------+ &lt;- rsp <br/>
+| &amp;"/bin/sh"     |           <br/>
++----------------+           <br/>
+| &amp;pop rdi; ret; |           <br/>
++----------------+           <br/>
+| AAAAAAAAAAAAAA |           <br/>
+| AAAAAAAAAAAAAA |           <br/>
+| AAAAAAAAAAAAAA |           <br/>
+| /bin/sh AAAAAA |           <br/>
++----------------+           <br/>
+|                |           <br/>
++----------------+           <br/>
+</pre>
+
+<pre>
++----------------+<br/>
+| rdi=&"/bin/sh" |<br/>
++----------------+<br/>
+</pre>
+
+</Split>
+
+---
+
+# ret;
+
+<Split>
+
+<pre>
++----------------+           <br/>
+|                |           <br/>
++----------------+           <br/>
+| &amp;system()      |           <br/>
++----------------+ &lt;- rsp <br/>
+| &amp;"/bin/sh"     |           <br/>
++----------------+           <br/>
+| &amp;pop rdi; ret; |           <br/>
++----------------+           <br/>
+| AAAAAAAAAAAAAA |           <br/>
+| AAAAAAAAAAAAAA |           <br/>
+| AAAAAAAAAAAAAA |           <br/>
+| /bin/sh AAAAAA |           <br/>
++----------------+           <br/>
+|                |           <br/>
++----------------+           <br/>
+</pre>
+
+<pre>
++----------------+<br/>
+| rdi=&"/bin/sh" |<br/>
++----------------+<br/>
+</pre>
+
+</Split>
+
+---
+
+# system("/bin/sh");
+
+<Split>
+
+<pre>
++----------------+           <br/>
+|                |           <br/>
++----------------+ &lt;- rsp <br/>
+| &amp;system()      |           <br/>
++----------------+           <br/>
+| &amp;"/bin/sh"     |           <br/>
++----------------+           <br/>
+| &amp;pop rdi; ret; |           <br/>
++----------------+           <br/>
+| AAAAAAAAAAAAAA |           <br/>
+| AAAAAAAAAAAAAA |           <br/>
+| AAAAAAAAAAAAAA |           <br/>
+| /bin/sh AAAAAA |           <br/>
++----------------+           <br/>
+|                |           <br/>
++----------------+           <br/>
+</pre>
+
+<pre>
++----------------+<br/>
+| rdi=&"/bin/sh" |<br/>
++----------------+<br/>
+</pre>
+
+</Split>
+
+---
+
+# demo
+
+---
+
+# questions?
