@@ -13,7 +13,7 @@ We get a number of files:
  - `patch.diff` - Patch to v8 that introduces a vulnerability
  - `d8` - Javascript shell built with patch applied
  - `server.py` - Python script that accepts js script as input and runs it with modified `d8`
- - `snapshot_blob.bin` - Not sure, didn't turn out to be relevant
+ - `snapshot_blob.bin` - needed for v8
 
 The challenge description says that once we gain code execution, we just have to run the `/home/ctf/flagprinter` binary. That's boring though, so we'll get a shell instead.
 
@@ -139,7 +139,7 @@ A lot of existing articles and writeups are written with the old 64bit pointers,
 ### Pointer tagging
 v8 uses another trick with it's pointers to save space and increase performance: pointer tagging. If a value has the least significant bit is set, then the value is treated as a pointer. If it's cleared, then instead it's treated as a number. When treated as a number, the value is called a small integer, or Smi.
 
-When treating the value as a pointer, the actual offset (remember, these are compressed pointers) is calculated by first subtracting 1, clearing the LSB. This means that we loose some granularity, but keep our entire memory range addressable.
+When treating the value as a pointer, the actual offset (remember, these are compressed pointers) is calculated by first subtracting 1, clearing the LSB. This means that we lose some granularity, but keep our entire memory range addressable.
 
 Then treating the value as an Smi, the LSB is ignored, and the remaining 31 bits are treated as an integer. So we can't store a full 32 bit value, but hey, they're called "small" for a reason.
 
@@ -406,11 +406,10 @@ function write(addr, data) {
 }
 ```
 
-Read would be implemented in much the same wa, but it wasn't needed for this exploit and so is left as an exercise to the reader :)
+Read would be implemented in much the same way, but it wasn't needed for this exploit and so is left as an exercise to the reader :)
 
 ## Sidebar: Arbitrary Heap R/W
 Pointer compression means we generally only have the lower 32 bits of a javascript object's address in memory. This makes using the arbitrary r/w primitive above on the v8 heap objects difficult, as we would need to brute force a fair amount of ASLR. A way around this is to overwrite the `elements` pointer in an array, since that is also a 32 bit compressed pointer. I ended up using a different method I describe below, but the official solve script has an example. *Link Here*
-
 
 
 ## JSObjects in memory
