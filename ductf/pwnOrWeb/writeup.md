@@ -132,7 +132,7 @@ v8 does a lot of manual memory management and tricks to squeeze out as much perf
 Instead of using the glibc malloc() implementation, v8 uses a custom, deterministic bump allocator to hold javascript objects. This is useful for us, since it means that _most_ objects JS objects will be at known offsets. This assumption can break if you reach the end of the heap or a GC pass runs, but for this challenge it's perfectly valid.
 
 ### Pointer Compression
-In an effort to save space, v8 recently introduced [pointer compression](https://v8.dev/blog/pointer-compression), switching from a 64bit value to a 32bit offset. This has a couple implications, the main one for us is that getting the full address of an object on the v8 heap becomes more difficult.
+In an effort to save space, v8 introduced [pointer compression](https://v8.dev/blog/pointer-compression), switching from a 64bit value to a 32bit offset. This has a couple implications, the main one for us is that getting the full address of an object on the v8 heap becomes more difficult.
 
 A lot of existing articles and writeups are written with the old 64bit pointers, so be careful not to get tripped up when reading around online.
 

